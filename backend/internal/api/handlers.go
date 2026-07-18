@@ -43,6 +43,7 @@ func (h *Handler) Routes() chi.Router {
 			r.Post("/characters/{id}/bank/deposit", h.DepositBank)
 			r.Post("/characters/{id}/bank/withdraw", h.WithdrawBank)
 			r.Get("/characters/{id}/inventory", h.ListInventory)
+			r.Post("/characters/{id}/inventory/use", h.UseInventoryItem)
 			r.Post("/characters/{id}/shops/{shopID}/purchase", h.PurchaseFromShop)
 			r.Get("/shops/warung", h.ListWarungCatalog)
 			r.Get("/housing/listings", h.ListHousing)
@@ -386,6 +387,50 @@ func (h *Handler) ListInventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+type useItemRequest struct {
+	ItemKey  string `json:"item_key"`
+	Quantity int    `json:"quantity"`
+}
+
+func (h *Handler) UseInventoryItem(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	var req useItemRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	if req.Quantity <= 0 {
+		req.Quantity = 1
+	}
+	if _, ok := catalog.UsableByKey(req.ItemKey); !ok {
+		httpx.Error(w, http.StatusBadRequest, "item cannot be used")
+		return
+	}
+
+	result, err := h.Store.UseInventoryItem(r.Context(), accountID, id, req.ItemKey, req.Quantity)
+	switch {
+	case errors.Is(err, store.ErrInvalidInput):
+		httpx.Error(w, http.StatusBadRequest, "invalid use request")
+	case errors.Is(err, store.ErrNotFound):
+		httpx.Error(w, http.StatusNotFound, "character not found")
+	case errors.Is(err, store.ErrNotEnoughItems):
+		httpx.Error(w, http.StatusConflict, "not enough items in inventory")
+	case err != nil:
+		httpx.Error(w, http.StatusInternalServerError, "use item failed")
+	default:
+		httpx.JSON(w, http.StatusOK, result)
+	}
 }
 
 type purchaseRequest struct {

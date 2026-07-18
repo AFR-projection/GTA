@@ -71,6 +71,8 @@ Test accounts yang sudah ada di Neon (dev):
 - Vehicles catalog + buy + refuel SPBU + consume-fuel + vehicle position  
 - Jobs (ojol/kurir/kasir) + cooldown table  
 - P2P cash transfer  
+- Rate limit per-IP (~180/min)  
+- Inventory use (makan/minum item warung)  
 
 Migrations goose: `00001` … `00004` (current version **4**).
 

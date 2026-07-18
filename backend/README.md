@@ -19,6 +19,7 @@ Server-authoritative persistence layer for Indonesia Life Online.
 | POST | `/v1/characters/{id}/bank/withdraw` | Bearer | Bank → cash (audited) |
 | GET | `/v1/shops/warung` | Bearer | Katalog warung |
 | GET | `/v1/characters/{id}/inventory` | Bearer | List inventory |
+| POST | `/v1/characters/{id}/inventory/use` | Bearer | Pakai/makan item (qty default 1) |
 | POST | `/v1/characters/{id}/shops/warung/purchase` | Bearer | Beli item (cash + inventory + audit) |
 | GET | `/v1/housing/listings` | Bearer | Daftar rumah dijual |
 | GET | `/v1/characters/{id}/houses` | Bearer | Rumah milik karakter |

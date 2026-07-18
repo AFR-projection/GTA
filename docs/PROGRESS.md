@@ -41,8 +41,8 @@ Update terakhir: **2026-07-19**
 | [x] | Jobs + cooldown 60s | migrasi `00004` |
 | [x] | P2P cash transfer | |
 | [x] | Neon simple-protocol fix (pgx) | |
-| [ ] | HTTP rate limiting | Next up (backend) |
-| [ ] | Use/consume inventory item (makan) | Next up (backend) |
+| [x] | HTTP rate limiting (per-IP, in-memory) | 2026-07-19 ~180 req/min |
+| [x] | Use/consume inventory item (makan) | 2026-07-19 |
 | [ ] | Sell vehicle / house (opsional) | later |
 
 ---
@@ -81,7 +81,9 @@ Update terakhir: **2026-07-19**
 
 1. **Tunggu / selesaikan install UE 5.8** → centang Fase 0 UE  
 2. **Buat project ILO di `game/`**  
-3. Sambil nunggu UE: boleh kerjakan **rate limit** atau **use inventory item**  
+3. Sambil nunggu UE: boleh kerjakan **sell vehicle** atau polish API docs  
+
+Update terakhir checklist backend: rate limit + inventory use — **2026-07-19**
 
 ---
 

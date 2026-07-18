@@ -23,6 +23,7 @@ var (
 	ErrAlreadyOwnsHouse  = errors.New("already owns a house")
 	ErrOutOfFuel         = errors.New("out of fuel")
 	ErrJobOnCooldown     = errors.New("job on cooldown")
+	ErrNotEnoughItems    = errors.New("not enough items")
 )
 
 type Store struct {
@@ -358,6 +359,84 @@ func (s *Store) ListInventory(ctx context.Context, accountID, characterID uuid.U
 		out = append(out, it)
 	}
 	return out, rows.Err()
+}
+
+type UseItemResult struct {
+	Inventory []models.InventoryItem `json:"inventory"`
+	ItemKey   string                 `json:"item_key"`
+	Quantity  int                    `json:"quantity_used"`
+}
+
+// UseInventoryItem consumes qty of a usable item (server validates catalog).
+func (s *Store) UseInventoryItem(ctx context.Context, accountID, characterID uuid.UUID, itemKey string, qty int) (UseItemResult, error) {
+	if itemKey == "" || qty <= 0 {
+		return UseItemResult{}, ErrInvalidInput
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return UseItemResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var cID uuid.UUID
+	err = tx.QueryRow(ctx, `
+		SELECT id FROM characters WHERE id = $1 AND account_id = $2 FOR UPDATE
+	`, characterID, accountID).Scan(&cID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UseItemResult{}, ErrNotFound
+	}
+	if err != nil {
+		return UseItemResult{}, err
+	}
+
+	var itemID uuid.UUID
+	var have int
+	err = tx.QueryRow(ctx, `
+		SELECT id, quantity FROM inventory_items
+		WHERE character_id = $1 AND item_key = $2
+		FOR UPDATE
+	`, characterID, itemKey).Scan(&itemID, &have)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UseItemResult{}, ErrNotEnoughItems
+	}
+	if err != nil {
+		return UseItemResult{}, err
+	}
+	if have < qty {
+		return UseItemResult{}, ErrNotEnoughItems
+	}
+
+	left := have - qty
+	if left == 0 {
+		if _, err := tx.Exec(ctx, `DELETE FROM inventory_items WHERE id = $1`, itemID); err != nil {
+			return UseItemResult{}, err
+		}
+	} else {
+		if _, err := tx.Exec(ctx, `
+			UPDATE inventory_items SET quantity = $1, updated_at = NOW() WHERE id = $2
+		`, left, itemID); err != nil {
+			return UseItemResult{}, err
+		}
+	}
+
+	meta := fmt.Sprintf(`{"item_key":%q,"qty":%d}`, itemKey, qty)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO transactions (character_id, kind, amount, balance_cash, balance_bank, meta)
+		VALUES ($1, 'item_use', 0, NULL, NULL, $2::jsonb)
+	`, characterID, meta); err != nil {
+		return UseItemResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return UseItemResult{}, err
+	}
+
+	inv, err := s.ListInventory(ctx, accountID, characterID)
+	if err != nil {
+		return UseItemResult{}, err
+	}
+	return UseItemResult{Inventory: inv, ItemKey: itemKey, Quantity: qty}, nil
 }
 
 type PurchaseResult struct {

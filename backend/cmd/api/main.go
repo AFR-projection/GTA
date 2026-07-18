@@ -15,6 +15,7 @@ import (
 	"github.com/AFR-projection/GTA/backend/internal/config"
 	"github.com/AFR-projection/GTA/backend/internal/db"
 	"github.com/AFR-projection/GTA/backend/internal/store"
+	mw "github.com/AFR-projection/GTA/backend/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -54,6 +55,7 @@ func main() {
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Timeout(30 * time.Second))
+	r.Use(mw.RateLimit(180))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
