@@ -53,9 +53,10 @@ Jika semua di atas stabil, MVP **lulus**. Sisanya ditunda.
 - [x] Semua mutasi uang/item **hanya di server** (pola bank sudah)
 
 ### Properti
-- [ ] Rumah sederhana: sewa atau beli (pilih satu flow untuk 0.1)
-- [ ] Interior minimal / spawn point rumah
-- [ ] Kunci rumah di inventory (opsional tapi disarankan)
+- [x] Rumah sederhana: beli (ownership) — API
+- [x] Interior minimal / spawn point rumah — pos_x/y/z di listing
+- [x] Kunci rumah di inventory (`house_key_*`)
+- [ ] Integrasi enter/exit rumah di UE
 
 ### Dunia hidup (minimal)
 - [ ] Siklus siang/malam

@@ -14,10 +14,12 @@ import (
 )
 
 var (
-	ErrNotFound      = errors.New("not found")
-	ErrConflict      = errors.New("conflict")
-	ErrLimitReached  = errors.New("character limit reached")
-	ErrInvalidInput  = errors.New("invalid input")
+	ErrNotFound          = errors.New("not found")
+	ErrConflict          = errors.New("conflict")
+	ErrLimitReached      = errors.New("character limit reached")
+	ErrInvalidInput      = errors.New("invalid input")
+	ErrInsufficientFunds = errors.New("insufficient funds")
+	ErrAlreadyOwnsHouse  = errors.New("already owns a house")
 )
 
 type Store struct {
@@ -195,8 +197,6 @@ func (s *Store) GetCharacterForAccount(ctx context.Context, accountID, character
 	}
 	return c, nil
 }
-
-var ErrInsufficientFunds = errors.New("insufficient funds")
 
 // DepositBank moves cash → bank. Amount must be > 0.
 func (s *Store) DepositBank(ctx context.Context, accountID, characterID uuid.UUID, amount int64) (models.Character, error) {
@@ -417,6 +417,132 @@ func (s *Store) PurchaseItem(ctx context.Context, accountID, characterID uuid.UU
 		Quantity:  qty,
 		TotalPaid: total,
 	}, nil
+}
+
+func (s *Store) ListHouses(ctx context.Context, accountID, characterID uuid.UUID) ([]models.House, error) {
+	if _, err := s.GetCharacterForAccount(ctx, accountID, characterID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, character_id, listing_key, label, pos_x, pos_y, pos_z, purchase_price, created_at, updated_at
+		FROM houses WHERE character_id = $1 ORDER BY created_at ASC
+	`, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]models.House, 0)
+	for rows.Next() {
+		var h models.House
+		if err := rows.Scan(
+			&h.ID, &h.CharacterID, &h.ListingKey, &h.Label,
+			&h.PosX, &h.PosY, &h.PosZ, &h.PurchasePrice, &h.CreatedAt, &h.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
+type BuyHouseResult struct {
+	Character models.Character       `json:"character"`
+	House     models.House           `json:"house"`
+	Inventory []models.InventoryItem `json:"inventory"`
+}
+
+// BuyHouse purchases from trusted catalog. MVP: max 1 house per character.
+func (s *Store) BuyHouse(ctx context.Context, accountID, characterID uuid.UUID, listingKey, label string, price int64, posX, posY, posZ float64) (BuyHouseResult, error) {
+	if listingKey == "" || label == "" || price < 0 {
+		return BuyHouseResult{}, ErrInvalidInput
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return BuyHouseResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var c models.Character
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, name, gender, skin_tone, hair_style, face_preset, outfit_id,
+		       cash, bank, pos_x, pos_y, pos_z, created_at, updated_at
+		FROM characters WHERE id = $1 AND account_id = $2
+		FOR UPDATE
+	`, characterID, accountID).Scan(
+		&c.ID, &c.AccountID, &c.Name, &c.Gender, &c.SkinTone, &c.HairStyle, &c.FacePreset, &c.OutfitID,
+		&c.Cash, &c.Bank, &c.PosX, &c.PosY, &c.PosZ, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return BuyHouseResult{}, ErrNotFound
+	}
+	if err != nil {
+		return BuyHouseResult{}, err
+	}
+
+	var owned int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM houses WHERE character_id = $1`, c.ID).Scan(&owned); err != nil {
+		return BuyHouseResult{}, err
+	}
+	if owned >= 1 {
+		return BuyHouseResult{}, ErrAlreadyOwnsHouse
+	}
+
+	if c.Cash < price {
+		return BuyHouseResult{}, ErrInsufficientFunds
+	}
+
+	c.Cash -= price
+	if err := tx.QueryRow(ctx, `
+		UPDATE characters SET cash = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, c.Cash, c.ID).Scan(&c.UpdatedAt); err != nil {
+		return BuyHouseResult{}, err
+	}
+
+	var h models.House
+	err = tx.QueryRow(ctx, `
+		INSERT INTO houses (character_id, listing_key, label, pos_x, pos_y, pos_z, purchase_price)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		RETURNING id, character_id, listing_key, label, pos_x, pos_y, pos_z, purchase_price, created_at, updated_at
+	`, c.ID, listingKey, label, posX, posY, posZ, price).Scan(
+		&h.ID, &h.CharacterID, &h.ListingKey, &h.Label, &h.PosX, &h.PosY, &h.PosZ, &h.PurchasePrice, &h.CreatedAt, &h.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return BuyHouseResult{}, ErrConflict
+		}
+		return BuyHouseResult{}, err
+	}
+
+	keyItem := "house_key_" + listingKey
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO inventory_items (character_id, item_key, quantity)
+		VALUES ($1, $2, 1)
+		ON CONFLICT (character_id, item_key)
+		DO UPDATE SET quantity = inventory_items.quantity + 1, updated_at = NOW()
+	`, c.ID, keyItem); err != nil {
+		return BuyHouseResult{}, err
+	}
+
+	meta := fmt.Sprintf(`{"listing_key":%q,"label":%q}`, listingKey, label)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO transactions (character_id, kind, amount, balance_cash, balance_bank, meta)
+		VALUES ($1, 'house_purchase', $2, $3, $4, $5::jsonb)
+	`, c.ID, price, c.Cash, c.Bank, meta); err != nil {
+		return BuyHouseResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return BuyHouseResult{}, err
+	}
+
+	inv, err := s.ListInventory(ctx, accountID, characterID)
+	if err != nil {
+		return BuyHouseResult{}, err
+	}
+
+	return BuyHouseResult{Character: c, House: h, Inventory: inv}, nil
 }
 
 func isUniqueViolation(err error) bool {

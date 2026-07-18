@@ -43,6 +43,9 @@ func (h *Handler) Routes() chi.Router {
 			r.Get("/characters/{id}/inventory", h.ListInventory)
 			r.Post("/characters/{id}/shops/{shopID}/purchase", h.PurchaseFromShop)
 			r.Get("/shops/warung", h.ListWarungCatalog)
+			r.Get("/housing/listings", h.ListHousing)
+			r.Get("/characters/{id}/houses", h.ListHouses)
+			r.Post("/characters/{id}/houses/buy", h.BuyHouse)
 		})
 	})
 
@@ -366,5 +369,84 @@ func (h *Handler) PurchaseFromShop(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "purchase failed")
 	default:
 		httpx.JSON(w, http.StatusOK, result)
+	}
+}
+
+func (h *Handler) ListHousing(w http.ResponseWriter, _ *http.Request) {
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"listings": catalog.Housing,
+		"note":     "MVP: 1 house per character (buy ownership)",
+	})
+}
+
+func (h *Handler) ListHouses(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	houses, err := h.Store.ListHouses(r.Context(), accountID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		httpx.Error(w, http.StatusNotFound, "character not found")
+		return
+	}
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "could not list houses")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"houses": houses})
+}
+
+type buyHouseRequest struct {
+	ListingKey string `json:"listing_key"`
+}
+
+func (h *Handler) BuyHouse(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	var req buyHouseRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	listing, found := catalog.HousingByKey(req.ListingKey)
+	if !found {
+		httpx.Error(w, http.StatusBadRequest, "unknown listing_key")
+		return
+	}
+
+	result, err := h.Store.BuyHouse(
+		r.Context(), accountID, id,
+		listing.Key, listing.Label, listing.Price,
+		listing.PosX, listing.PosY, listing.PosZ,
+	)
+	switch {
+	case errors.Is(err, store.ErrInvalidInput):
+		httpx.Error(w, http.StatusBadRequest, "invalid purchase")
+	case errors.Is(err, store.ErrNotFound):
+		httpx.Error(w, http.StatusNotFound, "character not found")
+	case errors.Is(err, store.ErrInsufficientFunds):
+		httpx.Error(w, http.StatusConflict, "insufficient cash")
+	case errors.Is(err, store.ErrAlreadyOwnsHouse):
+		httpx.Error(w, http.StatusConflict, "mvp allows only 1 house per character")
+	case errors.Is(err, store.ErrConflict):
+		httpx.Error(w, http.StatusConflict, "house already owned")
+	case err != nil:
+		httpx.Error(w, http.StatusInternalServerError, "house purchase failed")
+	default:
+		httpx.JSON(w, http.StatusCreated, result)
 	}
 }
