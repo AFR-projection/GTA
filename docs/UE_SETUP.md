@@ -10,8 +10,10 @@ Tanpa UE5, slice multiplayer visual belum bisa dibuat. Backend tetap jalan di Ne
 ### 1) Install Epic Games Launcher
 https://store.epicgames.com/en-US/download
 
-### 2) Install Unreal Engine **5.4 atau 5.5** (salah satu, jangan campur)
+### 2) Install Unreal Engine **5.4+** (5.5 / **5.8** OK)
 Di Launcher → Unreal Engine → Library → Install Engine.
+
+Kalau sudah download **5.8.0** — itu dipakai. Jangan install 2 versi penuh kecuali perlu.
 
 Komponen saran:
 - Engine

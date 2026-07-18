@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/AFR-projection/GTA/backend/internal/models"
 	"github.com/google/uuid"
@@ -20,6 +21,8 @@ var (
 	ErrInvalidInput      = errors.New("invalid input")
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrAlreadyOwnsHouse  = errors.New("already owns a house")
+	ErrOutOfFuel         = errors.New("out of fuel")
+	ErrJobOnCooldown     = errors.New("job on cooldown")
 )
 
 type Store struct {
@@ -829,8 +832,6 @@ func (s *Store) UpdateVehiclePosition(ctx context.Context, accountID, characterI
 	return v, nil
 }
 
-var ErrOutOfFuel = errors.New("out of fuel")
-
 func (s *Store) ConsumeFuel(ctx context.Context, accountID, characterID, vehicleID uuid.UUID, amount float64) (models.Vehicle, error) {
 	if amount <= 0 {
 		return models.Vehicle{}, ErrInvalidInput
@@ -879,9 +880,9 @@ func (s *Store) ConsumeFuel(ctx context.Context, accountID, characterID, vehicle
 	return v, nil
 }
 
-// CompleteJobShift — MVP money loop (fiksi). Server decides payout.
-func (s *Store) CompleteJobShift(ctx context.Context, accountID, characterID uuid.UUID, jobKey string, payout int64) (models.Character, error) {
-	if jobKey == "" || payout <= 0 {
+// CompleteJobShift — MVP money loop (fiksi). Server decides payout + cooldown.
+func (s *Store) CompleteJobShift(ctx context.Context, accountID, characterID uuid.UUID, jobKey string, payout int64, cooldownSec int) (models.Character, error) {
+	if jobKey == "" || payout <= 0 || cooldownSec < 0 {
 		return models.Character{}, ErrInvalidInput
 	}
 
@@ -908,10 +909,35 @@ func (s *Store) CompleteJobShift(ctx context.Context, accountID, characterID uui
 		return models.Character{}, err
 	}
 
+	var lastCompleted time.Time
+	err = tx.QueryRow(ctx, `
+		SELECT last_completed_at FROM job_cooldowns
+		WHERE character_id = $1 AND job_key = $2
+		FOR UPDATE
+	`, c.ID, jobKey).Scan(&lastCompleted)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return models.Character{}, err
+	}
+	if err == nil {
+		elapsed := time.Since(lastCompleted)
+		if elapsed < time.Duration(cooldownSec)*time.Second {
+			return models.Character{}, ErrJobOnCooldown
+		}
+	}
+
 	c.Cash += payout
 	if err := tx.QueryRow(ctx, `
 		UPDATE characters SET cash = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
 	`, c.Cash, c.ID).Scan(&c.UpdatedAt); err != nil {
+		return models.Character{}, err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO job_cooldowns (character_id, job_key, last_completed_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (character_id, job_key)
+		DO UPDATE SET last_completed_at = NOW()
+	`, c.ID, jobKey); err != nil {
 		return models.Character{}, err
 	}
 
@@ -927,6 +953,106 @@ func (s *Store) CompleteJobShift(ctx context.Context, accountID, characterID uui
 		return models.Character{}, err
 	}
 	return c, nil
+}
+
+type TransferResult struct {
+	From models.Character `json:"from"`
+	To   models.Character `json:"to"`
+}
+
+// TransferCash moves cash from one character to another (P2P). Amount > 0.
+func (s *Store) TransferCash(ctx context.Context, fromAccountID, fromCharacterID, toCharacterID uuid.UUID, amount int64) (TransferResult, error) {
+	if amount <= 0 {
+		return TransferResult{}, ErrInvalidInput
+	}
+	if fromCharacterID == toCharacterID {
+		return TransferResult{}, ErrInvalidInput
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return TransferResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	// Lock both characters in stable UUID order to avoid deadlocks.
+	first, second := fromCharacterID, toCharacterID
+	if second.String() < first.String() {
+		first, second = second, first
+	}
+	if _, err := tx.Exec(ctx, `SELECT id FROM characters WHERE id IN ($1,$2) FOR UPDATE`, first, second); err != nil {
+		return TransferResult{}, err
+	}
+
+	var from models.Character
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, name, gender, skin_tone, hair_style, face_preset, outfit_id,
+		       cash, bank, pos_x, pos_y, pos_z, created_at, updated_at
+		FROM characters WHERE id = $1 AND account_id = $2
+	`, fromCharacterID, fromAccountID).Scan(
+		&from.ID, &from.AccountID, &from.Name, &from.Gender, &from.SkinTone, &from.HairStyle, &from.FacePreset, &from.OutfitID,
+		&from.Cash, &from.Bank, &from.PosX, &from.PosY, &from.PosZ, &from.CreatedAt, &from.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TransferResult{}, ErrNotFound
+	}
+	if err != nil {
+		return TransferResult{}, err
+	}
+
+	var to models.Character
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, name, gender, skin_tone, hair_style, face_preset, outfit_id,
+		       cash, bank, pos_x, pos_y, pos_z, created_at, updated_at
+		FROM characters WHERE id = $1
+	`, toCharacterID).Scan(
+		&to.ID, &to.AccountID, &to.Name, &to.Gender, &to.SkinTone, &to.HairStyle, &to.FacePreset, &to.OutfitID,
+		&to.Cash, &to.Bank, &to.PosX, &to.PosY, &to.PosZ, &to.CreatedAt, &to.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TransferResult{}, ErrNotFound
+	}
+	if err != nil {
+		return TransferResult{}, err
+	}
+
+	if from.Cash < amount {
+		return TransferResult{}, ErrInsufficientFunds
+	}
+
+	from.Cash -= amount
+	to.Cash += amount
+
+	if err := tx.QueryRow(ctx, `
+		UPDATE characters SET cash = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, from.Cash, from.ID).Scan(&from.UpdatedAt); err != nil {
+		return TransferResult{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+		UPDATE characters SET cash = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, to.Cash, to.ID).Scan(&to.UpdatedAt); err != nil {
+		return TransferResult{}, err
+	}
+
+	metaFrom := fmt.Sprintf(`{"to_character_id":%q,"to_name":%q}`, to.ID.String(), to.Name)
+	metaTo := fmt.Sprintf(`{"from_character_id":%q,"from_name":%q}`, from.ID.String(), from.Name)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO transactions (character_id, kind, amount, balance_cash, balance_bank, meta)
+		VALUES ($1, 'transfer_out', $2, $3, $4, $5::jsonb)
+	`, from.ID, amount, from.Cash, from.Bank, metaFrom); err != nil {
+		return TransferResult{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO transactions (character_id, kind, amount, balance_cash, balance_bank, meta)
+		VALUES ($1, 'transfer_in', $2, $3, $4, $5::jsonb)
+	`, to.ID, amount, to.Cash, to.Bank, metaTo); err != nil {
+		return TransferResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return TransferResult{}, err
+	}
+	return TransferResult{From: from, To: to}, nil
 }
 
 func isUniqueViolation(err error) bool {

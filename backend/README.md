@@ -30,7 +30,8 @@ Server-authoritative persistence layer for Indonesia Life Online.
 | PATCH | `/v1/characters/{id}/vehicles/{vehicleID}/position` | Bearer | Save posisi kendaraan |
 | POST | `/v1/characters/{id}/vehicles/{vehicleID}/consume-fuel` | Bearer | Kurangi bensin (saat drive) |
 | GET | `/v1/jobs` | Bearer | Daftar job shift |
-| POST | `/v1/characters/{id}/jobs/complete` | Bearer | Selesai shift → dapat cash |
+| POST | `/v1/characters/{id}/jobs/complete` | Bearer | Selesai shift → cash (cooldown 60s/job) |
+| POST | `/v1/characters/{id}/transfer` | Bearer | Transfer cash ke karakter lain |
 
 ## Local run (recommended: Neon, no Docker)
 

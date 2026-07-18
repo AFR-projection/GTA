@@ -14,6 +14,9 @@ var Jobs = []JobShift{
 	{Key: "kasir_shift", Label: "Shift Kasir Minimarket", Payout: 80, Description: "Jaga kasir 1 shift"},
 }
 
+// JobCooldownSeconds — anti-spam payout (server-side).
+const JobCooldownSeconds = 60
+
 func JobByKey(key string) (JobShift, bool) {
 	for _, j := range Jobs {
 		if j.Key == key {

@@ -74,6 +74,8 @@ Jika semua di atas stabil, MVP **lulus**. Sisanya ditunda.
 - [ ] Save progress saat disconnect / interval aman (UE hook)
 - [ ] Redis: session / online presence (minimal)
 - [x] Logging transaksi dasar (tabel `transactions`)
+- [x] Transfer cash antar pemain (API)
+- [x] Job cooldown anti-spam (60 detik / job)
 
 ---
 

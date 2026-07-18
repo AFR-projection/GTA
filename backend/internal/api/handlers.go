@@ -56,6 +56,7 @@ func (h *Handler) Routes() chi.Router {
 			r.Post("/characters/{id}/vehicles/{vehicleID}/consume-fuel", h.ConsumeFuel)
 			r.Get("/jobs", h.ListJobs)
 			r.Post("/characters/{id}/jobs/complete", h.CompleteJob)
+			r.Post("/characters/{id}/transfer", h.TransferCash)
 		})
 	})
 
@@ -750,19 +751,64 @@ func (h *Handler) CompleteJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, err := h.Store.CompleteJobShift(r.Context(), accountID, id, job.Key, job.Payout)
+	c, err := h.Store.CompleteJobShift(r.Context(), accountID, id, job.Key, job.Payout, catalog.JobCooldownSeconds)
 	switch {
 	case errors.Is(err, store.ErrInvalidInput):
 		httpx.Error(w, http.StatusBadRequest, "invalid job")
 	case errors.Is(err, store.ErrNotFound):
 		httpx.Error(w, http.StatusNotFound, "character not found")
+	case errors.Is(err, store.ErrJobOnCooldown):
+		httpx.Error(w, http.StatusTooManyRequests, "job on cooldown, try again later")
 	case err != nil:
 		httpx.Error(w, http.StatusInternalServerError, "job failed")
 	default:
 		httpx.JSON(w, http.StatusOK, map[string]any{
-			"character": c,
-			"job_key":   job.Key,
-			"payout":    job.Payout,
+			"character":        c,
+			"job_key":          job.Key,
+			"payout":           job.Payout,
+			"cooldown_seconds": catalog.JobCooldownSeconds,
 		})
+	}
+}
+
+type transferRequest struct {
+	ToCharacterID string `json:"to_character_id"`
+	Amount        int64  `json:"amount"`
+}
+
+func (h *Handler) TransferCash(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	var req transferRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	toID, err := uuid.Parse(req.ToCharacterID)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid to_character_id")
+		return
+	}
+
+	result, err := h.Store.TransferCash(r.Context(), accountID, id, toID, req.Amount)
+	switch {
+	case errors.Is(err, store.ErrInvalidInput):
+		httpx.Error(w, http.StatusBadRequest, "invalid transfer (amount > 0, not self)")
+	case errors.Is(err, store.ErrNotFound):
+		httpx.Error(w, http.StatusNotFound, "character not found")
+	case errors.Is(err, store.ErrInsufficientFunds):
+		httpx.Error(w, http.StatusConflict, "insufficient cash")
+	case err != nil:
+		httpx.Error(w, http.StatusInternalServerError, "transfer failed")
+	default:
+		httpx.JSON(w, http.StatusOK, result)
 	}
 }
