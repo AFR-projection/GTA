@@ -76,6 +76,8 @@ Baca berurutan:
 5. [`docs/TECH_DECISIONS.md`](docs/TECH_DECISIONS.md) — stack yang dikunci & alasan  
 6. [`docs/ROADMAP.md`](docs/ROADMAP.md) — urutan versi  
 7. [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — tugas konkret anak buah / kontributor baru  
+8. [`docs/UE_SETUP.md`](docs/UE_SETUP.md) — install Unreal (blocker visual)  
+9. [`docs/UE_INTEGRATION.md`](docs/UE_INTEGRATION.md) — kontrak UE ↔ Go API  
 
 **Aturan emas:** gameplay & correctness server-side dulu; grafik AAA final belakangan. Asset harus berlisensi / orisinal — jangan salin merek nyata.
 

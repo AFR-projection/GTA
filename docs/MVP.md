@@ -64,10 +64,11 @@ Jika semua di atas stabil, MVP **lulus**. Sisanya ditunda.
 - [ ] NPC dasar: walk / idle / simple schedule (Behavior Tree), **tanpa** LLM
 
 ### Persistensi & infrastruktur
-- [ ] PostgreSQL: account, character, inventory, money, vehicle ownership, house
-- [ ] Save progress saat disconnect / interval aman
+- [x] PostgreSQL: account, character, inventory, money, house (+ position save)
+- [x] Save progress posisi karakter (API `PATCH .../position`)
+- [ ] Save progress saat disconnect / interval aman (UE hook)
 - [ ] Redis: session / online presence (minimal)
-- [ ] Logging transaksi dasar
+- [x] Logging transaksi dasar (tabel `transactions`)
 
 ---
 

@@ -38,6 +38,7 @@ func (h *Handler) Routes() chi.Router {
 			r.Get("/characters", h.ListCharacters)
 			r.Post("/characters", h.CreateCharacter)
 			r.Get("/characters/{id}", h.GetCharacter)
+			r.Patch("/characters/{id}/position", h.UpdatePosition)
 			r.Post("/characters/{id}/bank/deposit", h.DepositBank)
 			r.Post("/characters/{id}/bank/withdraw", h.WithdrawBank)
 			r.Get("/characters/{id}/inventory", h.ListInventory)
@@ -235,6 +236,40 @@ func (h *Handler) GetCharacter(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "could not load character")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, c)
+}
+
+type positionRequest struct {
+	PosX float64 `json:"pos_x"`
+	PosY float64 `json:"pos_y"`
+	PosZ float64 `json:"pos_z"`
+}
+
+func (h *Handler) UpdatePosition(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	var req positionRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	c, err := h.Store.UpdatePosition(r.Context(), accountID, id, req.PosX, req.PosY, req.PosZ)
+	if errors.Is(err, store.ErrNotFound) {
+		httpx.Error(w, http.StatusNotFound, "character not found")
+		return
+	}
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "could not save position")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, c)

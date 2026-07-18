@@ -13,6 +13,7 @@ Server-authoritative persistence layer for Indonesia Life Online.
 | GET | `/v1/characters` | Bearer | List characters |
 | POST | `/v1/characters` | Bearer | Create character (max 1 in MVP) |
 | GET | `/v1/characters/{id}` | Bearer | Get owned character |
+| PATCH | `/v1/characters/{id}/position` | Bearer | Save world position (UE hydrate/relog) |
 | POST | `/v1/characters/{id}/bank/deposit` | Bearer | Cash → bank (audited) |
 | POST | `/v1/characters/{id}/bank/withdraw` | Bearer | Bank → cash (audited) |
 | GET | `/v1/shops/warung` | Bearer | Katalog warung |

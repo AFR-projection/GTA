@@ -43,6 +43,19 @@ Laporkan ke lead: `healthz` hijau + 1x register berhasil.
 
 ---
 
+## Blokir berikutnya: Unreal Engine 5
+
+Backend slice sudah jalan. Visual multiplayer **butuh UE5**.
+
+1. Ikuti [`UE_SETUP.md`](./UE_SETUP.md) — install Epic Launcher + UE 5.4/5.5  
+2. Kabari lead: **“UE ready 5.X”**  
+3. Buat project `ILO` di folder `game/`  
+4. Ikuti kontrak [`UE_INTEGRATION.md`](./UE_INTEGRATION.md)
+
+Tanpa langkah ini, kita cuma bisa lanjut API (kendaraan ownership, dll.) — bukan world yang kelihatan.
+
+---
+
 ## Minggu ini (urutan kerja — jangan loncat)
 
 | Prioritas | Task | Done when |

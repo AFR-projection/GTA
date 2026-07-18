@@ -198,6 +198,27 @@ func (s *Store) GetCharacterForAccount(ctx context.Context, accountID, character
 	return c, nil
 }
 
+func (s *Store) UpdatePosition(ctx context.Context, accountID, characterID uuid.UUID, x, y, z float64) (models.Character, error) {
+	var c models.Character
+	err := s.pool.QueryRow(ctx, `
+		UPDATE characters
+		SET pos_x = $1, pos_y = $2, pos_z = $3, updated_at = NOW()
+		WHERE id = $4 AND account_id = $5
+		RETURNING id, account_id, name, gender, skin_tone, hair_style, face_preset, outfit_id,
+		          cash, bank, pos_x, pos_y, pos_z, created_at, updated_at
+	`, x, y, z, characterID, accountID).Scan(
+		&c.ID, &c.AccountID, &c.Name, &c.Gender, &c.SkinTone, &c.HairStyle, &c.FacePreset, &c.OutfitID,
+		&c.Cash, &c.Bank, &c.PosX, &c.PosY, &c.PosZ, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Character{}, ErrNotFound
+	}
+	if err != nil {
+		return models.Character{}, err
+	}
+	return c, nil
+}
+
 // DepositBank moves cash → bank. Amount must be > 0.
 func (s *Store) DepositBank(ctx context.Context, accountID, characterID uuid.UUID, amount int64) (models.Character, error) {
 	if amount <= 0 {
