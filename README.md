@@ -69,15 +69,17 @@ Detail: [`backend/README.md`](backend/README.md) · tugas harian: [`docs/ONBOARD
 
 Baca berurutan:
 
-1. [`docs/PRD.md`](docs/PRD.md) — **Product Requirements** (apa & kenapa)  
-2. [`docs/VISION.md`](docs/VISION.md) — visi kreatif jangka panjang  
-3. [`docs/MVP.md`](docs/MVP.md) — **apa yang boleh dikerjakan di 0.1** (scope lock)  
-4. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — bagaimana sistem saling bicara  
-5. [`docs/TECH_DECISIONS.md`](docs/TECH_DECISIONS.md) — stack yang dikunci & alasan  
-6. [`docs/ROADMAP.md`](docs/ROADMAP.md) — urutan versi  
-7. [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — tugas konkret anak buah / kontributor baru  
-8. [`docs/UE_SETUP.md`](docs/UE_SETUP.md) — install Unreal (blocker visual)  
-9. [`docs/UE_INTEGRATION.md`](docs/UE_INTEGRATION.md) — kontrak UE ↔ Go API  
+1. [`docs/HANDOFF.md`](docs/HANDOFF.md) — **untuk AI agent lain / ganti tools** (baca pertama)  
+2. [`docs/PROGRESS.md`](docs/PROGRESS.md) — checklist fase (sudah sampai mana)  
+3. [`docs/PRD.md`](docs/PRD.md) — **Product Requirements** (apa & kenapa)  
+4. [`docs/VISION.md`](docs/VISION.md) — visi kreatif jangka panjang  
+5. [`docs/MVP.md`](docs/MVP.md) — **apa yang boleh dikerjakan di 0.1** (scope lock)  
+6. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — bagaimana sistem saling bicara  
+7. [`docs/TECH_DECISIONS.md`](docs/TECH_DECISIONS.md) — stack yang dikunci & alasan  
+8. [`docs/ROADMAP.md`](docs/ROADMAP.md) — urutan versi  
+9. [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — tugas konkret anak buah / kontributor baru  
+10. [`docs/UE_SETUP.md`](docs/UE_SETUP.md) — install Unreal (blocker visual)  
+11. [`docs/UE_INTEGRATION.md`](docs/UE_INTEGRATION.md) — kontrak UE ↔ Go API  
 
 **Aturan emas:** gameplay & correctness server-side dulu; grafik AAA final belakangan. Asset harus berlisensi / orisinal — jangan salin merek nyata.
 
