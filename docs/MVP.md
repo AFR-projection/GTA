@@ -48,8 +48,8 @@ Jika semua di atas stabil, MVP **lulus**. Sisanya ditunda.
 ### Ekonomi & inventory
 - [x] Dompet (cash on hand) — field + starting cash
 - [x] Bank (saldo + deposit/withdraw sederhana) — API
-- [ ] Inventory server-side (makanan/minuman/tools dasar)
-- [ ] Transaksi warung (beli item)
+- [x] Inventory server-side (makanan/minuman/tools dasar)
+- [x] Transaksi warung (beli item)
 - [x] Semua mutasi uang/item **hanya di server** (pola bank sudah)
 
 ### Properti

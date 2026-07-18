@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/AFR-projection/GTA/backend/internal/auth"
+	"github.com/AFR-projection/GTA/backend/internal/catalog"
 	"github.com/AFR-projection/GTA/backend/internal/httpx"
 	"github.com/AFR-projection/GTA/backend/internal/middleware"
 	"github.com/AFR-projection/GTA/backend/internal/models"
@@ -39,6 +40,9 @@ func (h *Handler) Routes() chi.Router {
 			r.Get("/characters/{id}", h.GetCharacter)
 			r.Post("/characters/{id}/bank/deposit", h.DepositBank)
 			r.Post("/characters/{id}/bank/withdraw", h.WithdrawBank)
+			r.Get("/characters/{id}/inventory", h.ListInventory)
+			r.Post("/characters/{id}/shops/{shopID}/purchase", h.PurchaseFromShop)
+			r.Get("/shops/warung", h.ListWarungCatalog)
 		})
 	})
 
@@ -280,5 +284,87 @@ func (h *Handler) mutateBank(w http.ResponseWriter, r *http.Request, deposit boo
 		httpx.Error(w, http.StatusInternalServerError, "bank operation failed")
 	default:
 		httpx.JSON(w, http.StatusOK, c)
+	}
+}
+
+func (h *Handler) ListWarungCatalog(w http.ResponseWriter, _ *http.Request) {
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"shop_id": catalog.WarungShopID,
+		"items":   catalog.Warung,
+	})
+}
+
+func (h *Handler) ListInventory(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	items, err := h.Store.ListInventory(r.Context(), accountID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		httpx.Error(w, http.StatusNotFound, "character not found")
+		return
+	}
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "could not list inventory")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+type purchaseRequest struct {
+	ItemKey  string `json:"item_key"`
+	Quantity int    `json:"quantity"`
+}
+
+func (h *Handler) PurchaseFromShop(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	shopID := chi.URLParam(r, "shopID")
+	if shopID != catalog.WarungShopID {
+		httpx.Error(w, http.StatusNotFound, "shop not found")
+		return
+	}
+
+	var req purchaseRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	if req.Quantity <= 0 {
+		req.Quantity = 1
+	}
+
+	item, ok := catalog.WarungByKey(req.ItemKey)
+	if !ok {
+		httpx.Error(w, http.StatusBadRequest, "unknown item_key for this shop")
+		return
+	}
+
+	result, err := h.Store.PurchaseItem(r.Context(), accountID, id, shopID, item.Key, item.Price, req.Quantity)
+	switch {
+	case errors.Is(err, store.ErrInvalidInput):
+		httpx.Error(w, http.StatusBadRequest, "invalid purchase")
+	case errors.Is(err, store.ErrNotFound):
+		httpx.Error(w, http.StatusNotFound, "character not found")
+	case errors.Is(err, store.ErrInsufficientFunds):
+		httpx.Error(w, http.StatusConflict, "insufficient cash")
+	case err != nil:
+		httpx.Error(w, http.StatusInternalServerError, "purchase failed")
+	default:
+		httpx.JSON(w, http.StatusOK, result)
 	}
 }

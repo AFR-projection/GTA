@@ -310,6 +310,115 @@ func (s *Store) WithdrawBank(ctx context.Context, accountID, characterID uuid.UU
 	return c, nil
 }
 
+func (s *Store) ListInventory(ctx context.Context, accountID, characterID uuid.UUID) ([]models.InventoryItem, error) {
+	// ownership check
+	if _, err := s.GetCharacterForAccount(ctx, accountID, characterID); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, character_id, item_key, quantity, created_at, updated_at
+		FROM inventory_items WHERE character_id = $1 ORDER BY item_key ASC
+	`, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]models.InventoryItem, 0)
+	for rows.Next() {
+		var it models.InventoryItem
+		if err := rows.Scan(&it.ID, &it.CharacterID, &it.ItemKey, &it.Quantity, &it.CreatedAt, &it.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+type PurchaseResult struct {
+	Character models.Character       `json:"character"`
+	Inventory []models.InventoryItem `json:"inventory"`
+	ItemKey   string                 `json:"item_key"`
+	Quantity  int                    `json:"quantity"`
+	TotalPaid int64                  `json:"total_paid"`
+}
+
+// PurchaseItem spends cash and upserts inventory. unitPrice/itemKey come from trusted catalog (server).
+func (s *Store) PurchaseItem(ctx context.Context, accountID, characterID uuid.UUID, shopID, itemKey string, unitPrice int64, qty int) (PurchaseResult, error) {
+	if qty <= 0 || unitPrice < 0 || itemKey == "" || shopID == "" {
+		return PurchaseResult{}, ErrInvalidInput
+	}
+	total := unitPrice * int64(qty)
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return PurchaseResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var c models.Character
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, name, gender, skin_tone, hair_style, face_preset, outfit_id,
+		       cash, bank, pos_x, pos_y, pos_z, created_at, updated_at
+		FROM characters WHERE id = $1 AND account_id = $2
+		FOR UPDATE
+	`, characterID, accountID).Scan(
+		&c.ID, &c.AccountID, &c.Name, &c.Gender, &c.SkinTone, &c.HairStyle, &c.FacePreset, &c.OutfitID,
+		&c.Cash, &c.Bank, &c.PosX, &c.PosY, &c.PosZ, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PurchaseResult{}, ErrNotFound
+	}
+	if err != nil {
+		return PurchaseResult{}, err
+	}
+	if c.Cash < total {
+		return PurchaseResult{}, ErrInsufficientFunds
+	}
+
+	c.Cash -= total
+	if err := tx.QueryRow(ctx, `
+		UPDATE characters SET cash = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, c.Cash, c.ID).Scan(&c.UpdatedAt); err != nil {
+		return PurchaseResult{}, err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO inventory_items (character_id, item_key, quantity)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (character_id, item_key)
+		DO UPDATE SET quantity = inventory_items.quantity + EXCLUDED.quantity, updated_at = NOW()
+	`, c.ID, itemKey, qty); err != nil {
+		return PurchaseResult{}, err
+	}
+
+	meta := fmt.Sprintf(`{"shop_id":%q,"item_key":%q,"qty":%d,"unit_price":%d}`, shopID, itemKey, qty, unitPrice)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO transactions (character_id, kind, amount, balance_cash, balance_bank, meta)
+		VALUES ($1, 'shop_purchase', $2, $3, $4, $5::jsonb)
+	`, c.ID, total, c.Cash, c.Bank, meta); err != nil {
+		return PurchaseResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return PurchaseResult{}, err
+	}
+
+	inv, err := s.ListInventory(ctx, accountID, characterID)
+	if err != nil {
+		return PurchaseResult{}, err
+	}
+
+	return PurchaseResult{
+		Character: c,
+		Inventory: inv,
+		ItemKey:   itemKey,
+		Quantity:  qty,
+		TotalPaid: total,
+	}, nil
+}
+
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"

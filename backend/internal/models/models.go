@@ -32,3 +32,12 @@ type Character struct {
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
+
+type InventoryItem struct {
+	ID          uuid.UUID `json:"id"`
+	CharacterID uuid.UUID `json:"character_id"`
+	ItemKey     string    `json:"item_key"`
+	Quantity    int       `json:"quantity"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}

@@ -5,13 +5,18 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
 func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, databaseURL)
+	cfg, err := parsePoolConfig(databaseURL)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("connect postgres: %w", err)
 	}
@@ -23,9 +28,9 @@ func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 }
 
 func Migrate(databaseURL, migrationsDir string) error {
-	cfg, err := pgxpool.ParseConfig(databaseURL)
+	cfg, err := parsePoolConfig(databaseURL)
 	if err != nil {
-		return fmt.Errorf("parse database url: %w", err)
+		return err
 	}
 	sqlDB := stdlib.OpenDB(*cfg.ConnConfig)
 	defer sqlDB.Close()
@@ -41,9 +46,20 @@ func Migrate(databaseURL, migrationsDir string) error {
 
 // OpenSQL is used by goose tooling helpers if needed.
 func OpenSQL(databaseURL string) (*sql.DB, error) {
-	cfg, err := pgxpool.ParseConfig(databaseURL)
+	cfg, err := parsePoolConfig(databaseURL)
 	if err != nil {
 		return nil, err
 	}
 	return stdlib.OpenDB(*cfg.ConnConfig), nil
+}
+
+// Neon (and many poolers) break with prepared statements.
+// Force simple protocol so migrate/runtime stay stable.
+func parsePoolConfig(databaseURL string) (*pgxpool.Config, error) {
+	cfg, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse database url: %w", err)
+	}
+	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	return cfg, nil
 }
