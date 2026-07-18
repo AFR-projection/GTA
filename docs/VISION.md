@@ -101,6 +101,7 @@ Zona yang direncanakan (jangka panjang): Downtown, Perumahan, Kampung, Sawah, Pe
 
 ## Referensi terkait
 
+- [PRD](./PRD.md) — product requirements (sumber kebenaran produk)
 - [MVP 0.1](./MVP.md) — ruang lingkup yang dikunci untuk rilis pertama
 - [Architecture](./ARCHITECTURE.md) — fondasi teknis
 - [Roadmap](./ROADMAP.md) — urutan milestone

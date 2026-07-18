@@ -69,12 +69,13 @@ Detail: [`backend/README.md`](backend/README.md) · tugas harian: [`docs/ONBOARD
 
 Baca berurutan:
 
-1. [`docs/VISION.md`](docs/VISION.md) — kenapa proyek ini ada  
-2. [`docs/MVP.md`](docs/MVP.md) — **apa yang boleh dikerjakan di 0.1** (scope lock)  
-3. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — bagaimana sistem saling bicara  
-4. [`docs/TECH_DECISIONS.md`](docs/TECH_DECISIONS.md) — stack yang dikunci & alasan  
-5. [`docs/ROADMAP.md`](docs/ROADMAP.md) — urutan versi  
-6. [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — tugas konkret anak buah / kontributor baru  
+1. [`docs/PRD.md`](docs/PRD.md) — **Product Requirements** (apa & kenapa)  
+2. [`docs/VISION.md`](docs/VISION.md) — visi kreatif jangka panjang  
+3. [`docs/MVP.md`](docs/MVP.md) — **apa yang boleh dikerjakan di 0.1** (scope lock)  
+4. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — bagaimana sistem saling bicara  
+5. [`docs/TECH_DECISIONS.md`](docs/TECH_DECISIONS.md) — stack yang dikunci & alasan  
+6. [`docs/ROADMAP.md`](docs/ROADMAP.md) — urutan versi  
+7. [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — tugas konkret anak buah / kontributor baru  
 
 **Aturan emas:** gameplay & correctness server-side dulu; grafik AAA final belakangan. Asset harus berlisensi / orisinal — jangan salin merek nyata.
 
