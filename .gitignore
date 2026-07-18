@@ -1,0 +1,58 @@
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Secrets & env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets/
+
+# IDE
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*~
+
+# Go
+backend/bin/
+backend/dist/
+*.exe
+*.test
+*.out
+coverage.out
+
+# Unreal Engine
+game/Binaries/
+game/DerivedDataCache/
+game/Intermediate/
+game/Saved/
+game/**/Binaries/
+game/**/DerivedDataCache/
+game/**/Intermediate/
+game/**/Saved/
+*.VC.db
+*.opensdf
+*.sdf
+*.sln.docstates
+*.suo
+*.xcodeproj
+*.xcworkspace
+
+# Build / packages
+node_modules/
+dist/
+build/
+*.log
+*.tmp
+
+# Local infra data
+infra/data/
+*.sql.bak

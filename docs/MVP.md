@@ -1,0 +1,130 @@
+# MVP 0.1 — Scope Lock
+
+Dokumen ini **mengunci** apa yang masuk Versi 0.1. Fitur di luar daftar ini dianggap **out of scope** sampai milestone berikutnya.
+
+Target: fondasi yang bisa dimainkan bersama (20–50 pemain), bukan konten sebanyak mungkin.
+
+---
+
+## Definisi sukses MVP
+
+Pemain dapat:
+
+1. Login / register
+2. Membuat karakter
+3. Masuk ke open world kecil bersama pemain lain
+4. Chat
+5. Naik motor & mobil
+6. Punya inventory + uang
+7. Pakai bank & SPBU
+8. Interaksi warung & rumah sederhana
+9. Progress tersimpan (database)
+10. Melihat NPC dasar + siang/malam + cuaca
+
+Jika semua di atas stabil, MVP **lulus**. Sisanya ditunda.
+
+---
+
+## In scope (wajib)
+
+### Akun & karakter
+- [ ] Register / login (JWT)
+- [ ] Character creation dasar (gender, kulit, rambut, wajah, pakaian starter)
+- [ ] 1 karakter per akun (multi-character bisa belakangan)
+
+### Dunia & multiplayer
+- [ ] Open world **kecil** (1–2 zona saja, mis. Downtown + Perumahan/Kampung ringkas)
+- [ ] Dedicated server, server-authoritative movement & interaksi penting
+- [ ] 20–50 concurrent players (target desain; optimasi bertahap)
+- [ ] Chat text (global / proximity — pilih satu untuk 0.1, jangan keduanya kalau belum siap)
+
+### Kendaraan
+- [ ] 1 motor + 1 mobil (prototype, desain orisinal / placeholder berlisensi)
+- [ ] Enter/exit, drive dasar
+- [ ] Bensin + isi di SPBU
+- [ ] Lampu / klakson (nice-to-have jika waktu cukup; tidak memblokir MVP)
+
+### Ekonomi & inventory
+- [ ] Dompet (cash on hand)
+- [ ] Bank (saldo + deposit/withdraw sederhana)
+- [ ] Inventory server-side (makanan/minuman/tools dasar)
+- [ ] Transaksi warung (beli item)
+- [ ] Semua mutasi uang/item **hanya di server**
+
+### Properti
+- [ ] Rumah sederhana: sewa atau beli (pilih satu flow untuk 0.1)
+- [ ] Interior minimal / spawn point rumah
+- [ ] Kunci rumah di inventory (opsional tapi disarankan)
+
+### Dunia hidup (minimal)
+- [ ] Siklus siang/malam
+- [ ] Cuaca dinamis dasar (sunny / cloudy / rain)
+- [ ] NPC dasar: walk / idle / simple schedule (Behavior Tree), **tanpa** LLM
+
+### Persistensi & infrastruktur
+- [ ] PostgreSQL: account, character, inventory, money, vehicle ownership, house
+- [ ] Save progress saat disconnect / interval aman
+- [ ] Redis: session / online presence (minimal)
+- [ ] Logging transaksi dasar
+
+---
+
+## Out of scope (sengaja ditunda)
+
+Jangan kerjakan ini di 0.1 kecuali sisa kapasitas setelah in-scope selesai:
+
+| Area | Ditunda ke |
+|---|---|
+| Bisnis player (warung milik pemain, offline income) | 0.2+ |
+| Marketplace / trading player-to-player | 0.2+ |
+| ATM UI lengkap, transfer antar pemain | 0.2 |
+| Banyak pekerjaan (ojol, polisi, dll.) — cukup 1–2 loop uang sederhana | 0.2 |
+| Furniture move & housing decoration dalam | 0.2–0.3 |
+| Bus, truk, kapal, sepeda | 0.3 |
+| Guild, friend list UI lengkap | 0.3 |
+| Quest/achievement system penuh | 0.2–0.3 |
+| Pajak, harga dinamis kompleks | 0.3+ |
+| Crafting | later |
+| Voice chat | later |
+| Anti-cheat lanjutan | bertahap setelah 0.1 |
+| Map zona lengkap (pantai, bandara, sawah, dll.) | bertahap |
+| AAA art final / seluruh asset original | bertahap (pakai Megascans/Fab dulu) |
+| LLM untuk NPC | bukan prioritas awal |
+
+---
+
+## Batasan teknis MVP
+
+- **1 region / 1 shard** dulu (belum multi-region matchmaking kompleks)
+- Client **tidak** boleh menentukan saldo, inventory, ownership
+- Asset: gratis / berlisensi (Quixel, Fab, Unreal free). Placeholder OK.
+- Target visual: “bisa dibanggakan”, bukan “AAA final”
+- FPS: usahakan 60 di mid-range; profile early, jangan tunda optimasi total ke akhir
+
+---
+
+## Kriteria “Done” per fitur
+
+Sebuah fitur MVP dianggap selesai hanya jika:
+
+1. Jalan di dedicated server (bukan hanya PIE single player)
+2. Validasi server-side ada
+3. Data penting tersimpan di DB
+4. Ada cara reproduksi / checklist uji singkat di `docs/` atau test plan internal
+
+---
+
+## Anti-pattern (hindari)
+
+- Memperbesar map sebelum movement + sync + save stabil
+- Menambah 10 pekerjaan sebelum ekonomi cash/bank aman
+- Customizer karakter ultra-detail sebelum login → world → save flow lengkap
+- Menyalin merek/kendaraan/logo nyata
+
+---
+
+## Referensi
+
+- [Vision](./VISION.md)
+- [Architecture](./ARCHITECTURE.md)
+- [Roadmap](./ROADMAP.md)
