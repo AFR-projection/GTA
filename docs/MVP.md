@@ -28,9 +28,10 @@ Jika semua di atas stabil, MVP **lulus**. Sisanya ditunda.
 ## In scope (wajib)
 
 ### Akun & karakter
-- [ ] Register / login (JWT)
-- [ ] Character creation dasar (gender, kulit, rambut, wajah, pakaian starter)
-- [ ] 1 karakter per akun (multi-character bisa belakangan)
+- [x] Register / login (JWT) — API backend scaffold
+- [x] Character creation dasar (gender, kulit, rambut, wajah, pakaian starter) — API fields
+- [x] 1 karakter per akun (multi-character bisa belakangan)
+- [ ] Integrasi flow ini dari UE client / dedicated server
 
 ### Dunia & multiplayer
 - [ ] Open world **kecil** (1–2 zona saja, mis. Downtown + Perumahan/Kampung ringkas)
@@ -45,11 +46,11 @@ Jika semua di atas stabil, MVP **lulus**. Sisanya ditunda.
 - [ ] Lampu / klakson (nice-to-have jika waktu cukup; tidak memblokir MVP)
 
 ### Ekonomi & inventory
-- [ ] Dompet (cash on hand)
-- [ ] Bank (saldo + deposit/withdraw sederhana)
+- [x] Dompet (cash on hand) — field + starting cash
+- [x] Bank (saldo + deposit/withdraw sederhana) — API
 - [ ] Inventory server-side (makanan/minuman/tools dasar)
 - [ ] Transaksi warung (beli item)
-- [ ] Semua mutasi uang/item **hanya di server**
+- [x] Semua mutasi uang/item **hanya di server** (pola bank sudah)
 
 ### Properti
 - [ ] Rumah sederhana: sewa atau beli (pilih satu flow untuk 0.1)

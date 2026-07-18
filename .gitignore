@@ -21,9 +21,8 @@ secrets/
 *.swp
 *~
 
-# Go
+# Build artifacts
 backend/bin/
-backend/dist/
 *.exe
 *.test
 *.out

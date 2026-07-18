@@ -10,11 +10,12 @@ Open World Multiplayer Life Simulation beridentitas Indonesia — dibangun denga
 
 | Item | Status |
 |---|---|
-| Fase | **0 — Project foundation** |
+| Fase | **0 → masuk 0.1 foundation** |
 | MVP target | **0.1** (lihat docs) |
 | Engine | Unreal Engine 5 |
-| Backend | Go + PostgreSQL + Redis |
-| Repo | Docs foundation siap; game & backend scaffold menyusul |
+| Backend | Go API scaffold (auth + character + migrations) |
+| Infra lokal | Docker Compose (Postgres 16 + Redis 7) |
+| Remote | https://github.com/AFR-projection/GTA |
 
 ---
 
@@ -28,6 +29,43 @@ Dokumen lengkap: [`docs/VISION.md`](docs/VISION.md)
 
 ---
 
+## Setup lokal (wajib sebelum coding backend)
+
+### 1) Install tools
+
+- [Go](https://go.dev/dl/) 1.22+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows)
+- Git (sudah)
+- Unreal Engine 5 (untuk slice game — belakangan setelah API jalan)
+
+### 2) Environment
+
+```powershell
+cd c:\Users\User\Documents\aldopr
+Copy-Item .env.example .env
+```
+
+### 3) Database + Redis
+
+```powershell
+cd infra
+docker compose up -d
+```
+
+### 4) Jalankan API
+
+```powershell
+cd ..\backend
+go mod tidy
+go run .\cmd\api
+```
+
+Health check: `http://localhost:8080/healthz`
+
+Detail endpoint & smoke test: [`backend/README.md`](backend/README.md)
+
+---
+
 ## Mulai dari sini (untuk kontributor)
 
 Baca berurutan:
@@ -37,6 +75,7 @@ Baca berurutan:
 3. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — bagaimana sistem saling bicara  
 4. [`docs/TECH_DECISIONS.md`](docs/TECH_DECISIONS.md) — stack yang dikunci & alasan  
 5. [`docs/ROADMAP.md`](docs/ROADMAP.md) — urutan versi  
+6. [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — tugas konkret anak buah / kontributor baru  
 
 **Aturan emas:** gameplay & correctness server-side dulu; grafik AAA final belakangan. Asset harus berlisensi / orisinal — jangan salin merek nyata.
 
@@ -56,23 +95,24 @@ Detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ---
 
-## Struktur repo (target)
+## Struktur repo
 
 ```
 aldopr/
-├── README.md          ← kamu di sini
-├── docs/              ← visi, MVP, arsitektur, roadmap, keputusan teknis
-├── backend/           ← Go API, migrations (menyusul)
-├── game/              ← Unreal project (menyusul)
-├── infra/             ← docker-compose, deploy scripts (menyusul)
-└── tools/             ← utilitas tim (menyusul)
+├── README.md
+├── .env.example
+├── docs/
+├── backend/           ← Go API (auth, characters, migrations)
+├── game/              ← Unreal project (belum)
+├── infra/             ← docker-compose.yml
+└── tools/
 ```
 
 ---
 
 ## MVP 0.1 (ringkas)
 
-Login, character creation, open world kecil, multiplayer, chat, motor + mobil, inventory, uang, bank, SPBU, warung, rumah sederhana, save ke database, NPC dasar, siang/malam, cuaca. Target **20–50 pemain** / server.
+Login, character creation, open world kecil, multiplayer, chat global, motor + mobil, inventory, uang, bank, SPBU, warung, rumah beli sederhana, save ke database, NPC dasar, siang/malam, cuaca. Target **20–50 pemain** / server.
 
 Checklist penuh: [`docs/MVP.md`](docs/MVP.md)
 
@@ -98,8 +138,6 @@ Checklist penuh: [`docs/MVP.md`](docs/MVP.md)
 - Conventional commits: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
 - Fitur di luar MVP 0.1 → diskusikan dulu; update `docs/MVP.md` / `docs/ROADMAP.md` jika disetujui
 - Jangan commit secret (`.env`, key, token)
-
-Setup lokal backend/game akan ditambahkan setelah scaffold Fase 0 selesai.
 
 ---
 

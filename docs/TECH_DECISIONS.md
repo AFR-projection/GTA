@@ -105,14 +105,18 @@ Branch suggestion:
 
 ---
 
-## Keputusan terbuka (belum dikunci)
+## Keputusan MVP yang dikunci
 
-Catat di sini saat diputuskan:
+| Topik | Keputusan | Alasan |
+|---|---|---|
+| Chat 0.1 | **Global chat** | Paling cepat untuk playtest multiplayer; proximity menyusul 0.2 |
+| Rumah 0.1 | **Beli (ownership)** | Ownership + save lebih mudah diuji daripada sewa berkala |
+| Character limit 0.1 | **1 karakter / akun** | Sederhanakan auth → world → save loop |
+
+## Keputusan masih terbuka
 
 | Topik | Opsi | Decide by |
 |---|---|---|
-| Chat: global vs proximity untuk 0.1 | global / proximity / keduanya | sebelum implementasi chat |
-| Rumah 0.1: sewa vs beli | rent / buy | sebelum housing slice |
 | Hosting game server | VPS / cloud VM / custom | sebelum external playtest |
 | Voice chat provider | none / third-party | post-0.1 |
 | Anti-cheat stack | custom rules vs middleware | post-0.1 |
@@ -124,6 +128,7 @@ Catat di sini saat diputuskan:
 | Tanggal | Perubahan |
 |---|---|
 | 2026-07-18 | Inisialisasi dokumen; Go dipilih untuk backend MVP; stack inti dikunci |
+| 2026-07-19 | Chat 0.1 = global; rumah 0.1 = beli; 1 karakter/akun; backend scaffold dimulai |
 
 ---
 

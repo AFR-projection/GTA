@@ -12,12 +12,14 @@ Roadmap ini mengikuti prinsip: **fondasi dulu, konten kemudian**. Setiap versi h
 - [x] MVP scope lock
 - [x] Architecture + tech decisions
 - [x] README proyek
-- [ ] Struktur folder repo (`backend/`, `infra/`, `game/`, `tools/`)
-- [ ] Git init + `.gitignore` (UE + Go + secrets)
-- [ ] Docker Compose: Postgres + Redis lokal
-- [ ] Coding standards singkat (commit convention, branch strategy)
+- [x] Struktur folder repo (`backend/`, `infra/`, `game/`, `tools/`)
+- [x] Git init + `.gitignore` (UE + Go + secrets)
+- [x] Docker Compose: Postgres + Redis lokal
+- [x] Backend scaffold: auth JWT + character CRUD + migrations
+- [x] Coding standards singkat (commit convention di TECH_DECISIONS)
+- [ ] Contributor machine: Go + Docker terpasang & API `healthz` hijau
 
-**Exit:** developer baru bisa clone → baca docs → tahu mau kerjakan apa.
+**Exit:** developer baru bisa clone → `docker compose up` → `go run` → register/login/character.
 
 ---
 
