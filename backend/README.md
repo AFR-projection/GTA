@@ -13,6 +13,7 @@ Server-authoritative persistence layer for Indonesia Life Online.
 | GET | `/v1/characters` | Bearer | List characters |
 | POST | `/v1/characters` | Bearer | Create character (max 1 in MVP) |
 | GET | `/v1/characters/{id}` | Bearer | Get owned character |
+| GET | `/v1/characters/{id}/summary` | Bearer | Character + inventory + houses + vehicles |
 | PATCH | `/v1/characters/{id}/position` | Bearer | Save world position (UE hydrate/relog) |
 | POST | `/v1/characters/{id}/bank/deposit` | Bearer | Cash → bank (audited) |
 | POST | `/v1/characters/{id}/bank/withdraw` | Bearer | Bank → cash (audited) |
@@ -26,6 +27,8 @@ Server-authoritative persistence layer for Indonesia Life Online.
 | GET | `/v1/characters/{id}/vehicles` | Bearer | Kendaraan milik karakter |
 | POST | `/v1/characters/{id}/vehicles/buy` | Bearer | Beli kendaraan |
 | POST | `/v1/characters/{id}/vehicles/{vehicleID}/refuel` | Bearer | Isi bensin SPBU |
+| PATCH | `/v1/characters/{id}/vehicles/{vehicleID}/position` | Bearer | Save posisi kendaraan |
+| POST | `/v1/characters/{id}/vehicles/{vehicleID}/consume-fuel` | Bearer | Kurangi bensin (saat drive) |
 | GET | `/v1/jobs` | Bearer | Daftar job shift |
 | POST | `/v1/characters/{id}/jobs/complete` | Bearer | Selesai shift → dapat cash |
 

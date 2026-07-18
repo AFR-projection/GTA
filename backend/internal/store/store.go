@@ -780,6 +780,105 @@ func (s *Store) RefuelVehicle(ctx context.Context, accountID, characterID, vehic
 	return RefuelResult{Character: c, Vehicle: v, FuelAdded: units, TotalPaid: total}, nil
 }
 
+func (s *Store) CharacterSummary(ctx context.Context, accountID, characterID uuid.UUID) (map[string]any, error) {
+	c, err := s.GetCharacterForAccount(ctx, accountID, characterID)
+	if err != nil {
+		return nil, err
+	}
+	inv, err := s.ListInventory(ctx, accountID, characterID)
+	if err != nil {
+		return nil, err
+	}
+	houses, err := s.ListHouses(ctx, accountID, characterID)
+	if err != nil {
+		return nil, err
+	}
+	vehicles, err := s.ListVehicles(ctx, accountID, characterID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"character": c,
+		"inventory": inv,
+		"houses":    houses,
+		"vehicles":  vehicles,
+	}, nil
+}
+
+func (s *Store) UpdateVehiclePosition(ctx context.Context, accountID, characterID, vehicleID uuid.UUID, x, y, z float64) (models.Vehicle, error) {
+	if _, err := s.GetCharacterForAccount(ctx, accountID, characterID); err != nil {
+		return models.Vehicle{}, err
+	}
+	var v models.Vehicle
+	err := s.pool.QueryRow(ctx, `
+		UPDATE vehicles
+		SET pos_x = $1, pos_y = $2, pos_z = $3, updated_at = NOW()
+		WHERE id = $4 AND character_id = $5
+		RETURNING id, character_id, listing_key, label, vehicle_type, fuel, fuel_max,
+		          pos_x, pos_y, pos_z, purchase_price, created_at, updated_at
+	`, x, y, z, vehicleID, characterID).Scan(
+		&v.ID, &v.CharacterID, &v.ListingKey, &v.Label, &v.VehicleType, &v.Fuel, &v.FuelMax,
+		&v.PosX, &v.PosY, &v.PosZ, &v.PurchasePrice, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Vehicle{}, ErrNotFound
+	}
+	if err != nil {
+		return models.Vehicle{}, err
+	}
+	return v, nil
+}
+
+var ErrOutOfFuel = errors.New("out of fuel")
+
+func (s *Store) ConsumeFuel(ctx context.Context, accountID, characterID, vehicleID uuid.UUID, amount float64) (models.Vehicle, error) {
+	if amount <= 0 {
+		return models.Vehicle{}, ErrInvalidInput
+	}
+	if _, err := s.GetCharacterForAccount(ctx, accountID, characterID); err != nil {
+		return models.Vehicle{}, err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return models.Vehicle{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var v models.Vehicle
+	err = tx.QueryRow(ctx, `
+		SELECT id, character_id, listing_key, label, vehicle_type, fuel, fuel_max,
+		       pos_x, pos_y, pos_z, purchase_price, created_at, updated_at
+		FROM vehicles WHERE id = $1 AND character_id = $2
+		FOR UPDATE
+	`, vehicleID, characterID).Scan(
+		&v.ID, &v.CharacterID, &v.ListingKey, &v.Label, &v.VehicleType, &v.Fuel, &v.FuelMax,
+		&v.PosX, &v.PosY, &v.PosZ, &v.PurchasePrice, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Vehicle{}, ErrNotFound
+	}
+	if err != nil {
+		return models.Vehicle{}, err
+	}
+	if v.Fuel <= 0 {
+		return models.Vehicle{}, ErrOutOfFuel
+	}
+	v.Fuel -= amount
+	if v.Fuel < 0 {
+		v.Fuel = 0
+	}
+	if err := tx.QueryRow(ctx, `
+		UPDATE vehicles SET fuel = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, v.Fuel, v.ID).Scan(&v.UpdatedAt); err != nil {
+		return models.Vehicle{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return models.Vehicle{}, err
+	}
+	return v, nil
+}
+
 // CompleteJobShift — MVP money loop (fiksi). Server decides payout.
 func (s *Store) CompleteJobShift(ctx context.Context, accountID, characterID uuid.UUID, jobKey string, payout int64) (models.Character, error) {
 	if jobKey == "" || payout <= 0 {

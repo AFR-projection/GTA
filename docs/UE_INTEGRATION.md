@@ -58,6 +58,9 @@ Response: simpan `token` di GameInstance (jangan hardcode di Blueprint asset yan
 }
 ```
 
+### Load character (full hydrate)
+`GET /v1/characters/{id}/summary` → character + inventory + houses + vehicles (pakai ini saat login world).
+
 ### Save position (server truth untuk disconnect)
 `PATCH /v1/characters/{id}/position` + Bearer
 
@@ -65,7 +68,11 @@ Response: simpan `token` di GameInstance (jangan hardcode di Blueprint asset yan
 { "pos_x": 10.5, "pos_y": 0.0, "pos_z": -3.2 }
 ```
 
-### Load character
+### Vehicle while driving (UE dedicated server / interval)
+- `POST .../vehicles/{vehicleID}/consume-fuel` `{ "amount": 0.5 }`
+- `PATCH .../vehicles/{vehicleID}/position` `{ "pos_x", "pos_y", "pos_z" }`
+
+### Load character (single)
 `GET /v1/characters/{id}` → pakai `pos_*`, `cash`, `bank` untuk hydrate state UI.
 
 ---

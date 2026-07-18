@@ -38,6 +38,7 @@ func (h *Handler) Routes() chi.Router {
 			r.Get("/characters", h.ListCharacters)
 			r.Post("/characters", h.CreateCharacter)
 			r.Get("/characters/{id}", h.GetCharacter)
+			r.Get("/characters/{id}/summary", h.CharacterSummary)
 			r.Patch("/characters/{id}/position", h.UpdatePosition)
 			r.Post("/characters/{id}/bank/deposit", h.DepositBank)
 			r.Post("/characters/{id}/bank/withdraw", h.WithdrawBank)
@@ -51,6 +52,8 @@ func (h *Handler) Routes() chi.Router {
 			r.Get("/characters/{id}/vehicles", h.ListVehicles)
 			r.Post("/characters/{id}/vehicles/buy", h.BuyVehicle)
 			r.Post("/characters/{id}/vehicles/{vehicleID}/refuel", h.RefuelVehicle)
+			r.Patch("/characters/{id}/vehicles/{vehicleID}/position", h.UpdateVehiclePosition)
+			r.Post("/characters/{id}/vehicles/{vehicleID}/consume-fuel", h.ConsumeFuel)
 			r.Get("/jobs", h.ListJobs)
 			r.Post("/characters/{id}/jobs/complete", h.CompleteJob)
 		})
@@ -245,6 +248,29 @@ func (h *Handler) GetCharacter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, c)
+}
+
+func (h *Handler) CharacterSummary(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	summary, err := h.Store.CharacterSummary(r.Context(), accountID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		httpx.Error(w, http.StatusNotFound, "character not found")
+		return
+	}
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "could not load summary")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, summary)
 }
 
 type positionRequest struct {
@@ -608,6 +634,89 @@ func (h *Handler) RefuelVehicle(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "refuel failed")
 	default:
 		httpx.JSON(w, http.StatusOK, result)
+	}
+}
+
+type vehiclePositionRequest struct {
+	PosX float64 `json:"pos_x"`
+	PosY float64 `json:"pos_y"`
+	PosZ float64 `json:"pos_z"`
+}
+
+func (h *Handler) UpdateVehiclePosition(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	vehicleID, err := uuid.Parse(chi.URLParam(r, "vehicleID"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid vehicle id")
+		return
+	}
+	var req vehiclePositionRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	v, err := h.Store.UpdateVehiclePosition(r.Context(), accountID, id, vehicleID, req.PosX, req.PosY, req.PosZ)
+	if errors.Is(err, store.ErrNotFound) {
+		httpx.Error(w, http.StatusNotFound, "character or vehicle not found")
+		return
+	}
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "could not save vehicle position")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, v)
+}
+
+type consumeFuelRequest struct {
+	Amount float64 `json:"amount"`
+}
+
+func (h *Handler) ConsumeFuel(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	vehicleID, err := uuid.Parse(chi.URLParam(r, "vehicleID"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid vehicle id")
+		return
+	}
+	var req consumeFuelRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	if req.Amount <= 0 {
+		req.Amount = 1
+	}
+
+	v, err := h.Store.ConsumeFuel(r.Context(), accountID, id, vehicleID, req.Amount)
+	switch {
+	case errors.Is(err, store.ErrInvalidInput):
+		httpx.Error(w, http.StatusBadRequest, "amount must be > 0")
+	case errors.Is(err, store.ErrNotFound):
+		httpx.Error(w, http.StatusNotFound, "character or vehicle not found")
+	case errors.Is(err, store.ErrOutOfFuel):
+		httpx.Error(w, http.StatusConflict, "out of fuel")
+	case err != nil:
+		httpx.Error(w, http.StatusInternalServerError, "consume fuel failed")
+	default:
+		httpx.JSON(w, http.StatusOK, v)
 	}
 }
 
