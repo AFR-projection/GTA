@@ -14,7 +14,7 @@ Open World Multiplayer Life Simulation beridentitas Indonesia — dibangun denga
 | MVP target | **0.1** (lihat docs) |
 | Engine | Unreal Engine 5 |
 | Backend | Go API scaffold (auth + character + migrations) |
-| Infra lokal | Docker Compose (Postgres 16 + Redis 7) |
+| Infra lokal | Neon cloud Postgres (Docker optional) |
 | Remote | https://github.com/AFR-projection/GTA |
 
 ---
@@ -29,14 +29,16 @@ Dokumen lengkap: [`docs/VISION.md`](docs/VISION.md)
 
 ---
 
-## Setup lokal (wajib sebelum coding backend)
+## Setup lokal (tanpa Docker)
+
+Database pakai **Neon** (cloud). Docker lokal tidak wajib.
 
 ### 1) Install tools
 
 - [Go](https://go.dev/dl/) 1.22+
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows)
-- Git (sudah)
-- Unreal Engine 5 (untuk slice game — belakangan setelah API jalan)
+- Akun [Neon](https://console.neon.tech) (Postgres gratis)
+- Git
+- Unreal Engine 5 (belakangan, setelah API hijau)
 
 ### 2) Environment
 
@@ -45,24 +47,21 @@ cd c:\Users\User\Documents\aldopr
 Copy-Item .env.example .env
 ```
 
-### 3) Database + Redis
+Isi `DATABASE_URL` di `.env` dengan connection string Neon (`sslmode=require`).
+
+### 3) Jalankan API
 
 ```powershell
-cd infra
-docker compose up -d
-```
-
-### 4) Jalankan API
-
-```powershell
-cd ..\backend
+cd backend
 go mod tidy
 go run .\cmd\api
 ```
 
 Health check: `http://localhost:8080/healthz`
 
-Detail endpoint & smoke test: [`backend/README.md`](backend/README.md)
+Detail: [`backend/README.md`](backend/README.md) · tugas harian: [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
+
+> `infra/docker-compose.yml` optional — hanya jika suatu saat mau Postgres/Redis lokal.
 
 ---
 

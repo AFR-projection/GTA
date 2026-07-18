@@ -1,31 +1,45 @@
 # Onboarding — tugas konkret
 
-Anggap lead sudah set arah. Ini yang **kamu** kerjakan biar proyek maju, bukan stuck di fantasi.
+Anggap lead sudah set arah. Ini yang **kamu** kerjakan biar proyek maju.
 
 ---
 
-## Hari ini (blocker mesin)
+## Setup mesin (TANPA Docker lokal)
 
-Tanpa ini, backend tidak bisa dijalankan:
+Docker lokal **tidak wajib**. Database jalan di cloud (**Neon**).
 
-1. Install **Go** — https://go.dev/dl/  
-2. Install **Docker Desktop** — https://www.docker.com/products/docker-desktop/  
-3. Restart terminal / PC jika PATH belum ke-update  
-4. Dari root repo:
+### Checklist
+
+1. **Go** terpasang — https://go.dev/dl/ (sudah OK kalau `go version` jalan)
+2. Buat project gratis di **Neon** — https://console.neon.tech  
+   - Region dekat SE Asia kalau ada  
+   - Copy **connection string** (URI) yang ada `sslmode=require`
+3. Di root repo, pastikan ada `.env`:
 
 ```powershell
+cd c:\Users\User\Documents\aldopr
 Copy-Item .env.example .env
-cd infra
-docker compose up -d
-cd ..\backend
+```
+
+4. Edit `.env` — ganti `DATABASE_URL` dengan URI dari Neon.  
+   **Jangan** commit / share `.env` ke chat publik.
+5. Jalankan API:
+
+```powershell
+cd backend
 go mod tidy
 go run .\cmd\api
 ```
 
-5. Buka `http://localhost:8080/healthz` → harus `{"status":"ok"}`  
-6. Jalankan smoke test di [`backend/README.md`](../backend/README.md)
+6. Cek: http://localhost:8080/healthz → `{"status":"ok"}`  
+7. Smoke test register/login di [`backend/README.md`](../backend/README.md)
 
-Laporkan ke lead kalau stuck di install (screenshot error).
+### Catatan
+
+- `infra/docker-compose.yml` tetap ada buat orang yang mau DB lokal — **kamu boleh ignore**.
+- Redis belum dipakai API sekarang → kosongin `REDIS_URL` boleh.
+
+Laporkan ke lead: `healthz` hijau + 1x register berhasil.
 
 ---
 
@@ -33,22 +47,22 @@ Laporkan ke lead kalau stuck di install (screenshot error).
 
 | Prioritas | Task | Done when |
 |---|---|---|
-| P0 | API auth + character jalan lokal | register → login → create character OK |
+| P0 | API auth + character jalan (API lokal + Neon) | register → login → create character OK |
 | P0 | Migrasi DB idempotent | restart API tidak rusak schema |
-| P1 | Economy stub endpoints | deposit/withdraw bank + audit `transactions` |
-| P1 | Inventory add/remove server-side | item warung bisa dibeli (tanpa UE dulu) |
-| P2 | Buat Unreal project kosong di `game/` | 2 PIE clients connect dedicated server (tanpa backend dulu juga OK) |
+| P1 | Inventory add/remove + beli warung server-side | item bisa dibeli via API |
+| P2 | Unreal project kosong di `game/` | 2 client connect dedicated server |
 
-**Dilarang minggu ini:** bikin map besar, customizer ultra, 10 pekerjaan, bisnis offline income.
+**Dilarang minggu ini:** map besar, customizer mega, 10 pekerjaan, bisnis offline income.
 
 ---
 
-## Keputusan yang sudah dikunci (jangan debat lagi)
+## Keputusan yang sudah dikunci
 
 - Chat 0.1 = **global**
 - Rumah 0.1 = **beli**
 - 1 karakter / akun
 - Backend = **Go**
+- Dev database = **Neon cloud** (Docker lokal optional)
 
 Lihat [`TECH_DECISIONS.md`](./TECH_DECISIONS.md).
 
@@ -56,11 +70,9 @@ Lihat [`TECH_DECISIONS.md`](./TECH_DECISIONS.md).
 
 ## Cara minta review ke lead
 
-Kirim:
-
-1. Apa yang berubah (1–3 bullet)
-2. Cara repro / test
-3. Link commit / PR
-4. Apa yang masih rusak / belum
+1. Apa yang berubah (1–3 bullet)  
+2. Cara repro / test  
+3. Link commit / PR  
+4. Apa yang masih rusak / belum  
 
 Jangan kirim “udah progress” tanpa bukti jalan.

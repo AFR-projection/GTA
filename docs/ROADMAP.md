@@ -14,12 +14,12 @@ Roadmap ini mengikuti prinsip: **fondasi dulu, konten kemudian**. Setiap versi h
 - [x] README proyek
 - [x] Struktur folder repo (`backend/`, `infra/`, `game/`, `tools/`)
 - [x] Git init + `.gitignore` (UE + Go + secrets)
-- [x] Docker Compose: Postgres + Redis lokal
+- [x] Docker Compose: Postgres + Redis lokal (**optional** — default tim pakai Neon)
 - [x] Backend scaffold: auth JWT + character CRUD + migrations
 - [x] Coding standards singkat (commit convention di TECH_DECISIONS)
-- [ ] Contributor machine: Go + Docker terpasang & API `healthz` hijau
+- [ ] Contributor: Neon `DATABASE_URL` terisi & API `healthz` hijau
 
-**Exit:** developer baru bisa clone → `docker compose up` → `go run` → register/login/character.
+**Exit:** developer baru bisa clone → isi Neon URL → `go run` → register/login/character.
 
 ---
 

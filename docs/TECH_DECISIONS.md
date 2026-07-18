@@ -77,6 +77,16 @@ Jika nanti pindah ke .NET: isolasi lewat API contract yang sama supaya game serv
 - Pisahkan config: `dev` / `staging` / `prod`
 - JWT secret, DB URL, Redis URL, R2 keys = environment only
 
+### Dev database (dikunci 2026-07-19)
+
+| Pilihan | Status |
+|---|---|
+| **Neon (cloud Postgres)** | **Default untuk tim** — tidak wajib install Docker |
+| Docker Compose lokal (`infra/`) | Optional saja, untuk yang mau DB offline |
+| Redis di lokal | Tidak wajib di fase auth/character; API belum memakai Redis |
+
+Alasan: kurangi friction onboarding Windows; Neon sudah selaras arsitektur produksi.
+
 ---
 
 ## Testing policy (MVP)
@@ -129,6 +139,7 @@ Branch suggestion:
 |---|---|
 | 2026-07-18 | Inisialisasi dokumen; Go dipilih untuk backend MVP; stack inti dikunci |
 | 2026-07-19 | Chat 0.1 = global; rumah 0.1 = beli; 1 karakter/akun; backend scaffold dimulai |
+| 2026-07-19 | Dev DB default = Neon cloud; Docker lokal optional (tidak wajib) |
 
 ---
 
