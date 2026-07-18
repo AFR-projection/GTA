@@ -54,3 +54,19 @@ type House struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
+
+type Vehicle struct {
+	ID            uuid.UUID `json:"id"`
+	CharacterID   uuid.UUID `json:"character_id"`
+	ListingKey    string    `json:"listing_key"`
+	Label         string    `json:"label"`
+	VehicleType   string    `json:"vehicle_type"`
+	Fuel          float64   `json:"fuel"`
+	FuelMax       float64   `json:"fuel_max"`
+	PosX          float64   `json:"pos_x"`
+	PosY          float64   `json:"pos_y"`
+	PosZ          float64   `json:"pos_z"`
+	PurchasePrice int64     `json:"purchase_price"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}

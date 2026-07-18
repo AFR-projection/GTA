@@ -22,6 +22,12 @@ Server-authoritative persistence layer for Indonesia Life Online.
 | GET | `/v1/housing/listings` | Bearer | Daftar rumah dijual |
 | GET | `/v1/characters/{id}/houses` | Bearer | Rumah milik karakter |
 | POST | `/v1/characters/{id}/houses/buy` | Bearer | Beli rumah (1x/karakter MVP) |
+| GET | `/v1/vehicles/listings` | Bearer | Katalog motor/mobil + harga BBM |
+| GET | `/v1/characters/{id}/vehicles` | Bearer | Kendaraan milik karakter |
+| POST | `/v1/characters/{id}/vehicles/buy` | Bearer | Beli kendaraan |
+| POST | `/v1/characters/{id}/vehicles/{vehicleID}/refuel` | Bearer | Isi bensin SPBU |
+| GET | `/v1/jobs` | Bearer | Daftar job shift |
+| POST | `/v1/characters/{id}/jobs/complete` | Bearer | Selesai shift → dapat cash |
 
 ## Local run (recommended: Neon, no Docker)
 

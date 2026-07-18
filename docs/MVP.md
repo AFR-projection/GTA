@@ -40,10 +40,15 @@ Jika semua di atas stabil, MVP **lulus**. Sisanya ditunda.
 - [ ] Chat text (global / proximity — pilih satu untuk 0.1, jangan keduanya kalau belum siap)
 
 ### Kendaraan
-- [ ] 1 motor + 1 mobil (prototype, desain orisinal / placeholder berlisensi)
-- [ ] Enter/exit, drive dasar
-- [ ] Bensin + isi di SPBU
+- [x] Katalog motor + mobil (API, desain fiksi)
+- [x] Ownership + kunci di inventory
+- [x] Bensin + isi di SPBU (API refuel)
+- [ ] Enter/exit, drive dasar (UE)
 - [ ] Lampu / klakson (nice-to-have jika waktu cukup; tidak memblokir MVP)
+
+### Jobs (loop uang sederhana)
+- [x] 3 job shift server-side (ojol/kurir/kasir) — payout dikunci server
+- [ ] Integrasi interact job di UE
 
 ### Ekonomi & inventory
 - [x] Dompet (cash on hand) — field + starting cash

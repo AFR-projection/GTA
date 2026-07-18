@@ -47,6 +47,12 @@ func (h *Handler) Routes() chi.Router {
 			r.Get("/housing/listings", h.ListHousing)
 			r.Get("/characters/{id}/houses", h.ListHouses)
 			r.Post("/characters/{id}/houses/buy", h.BuyHouse)
+			r.Get("/vehicles/listings", h.ListVehicleCatalog)
+			r.Get("/characters/{id}/vehicles", h.ListVehicles)
+			r.Post("/characters/{id}/vehicles/buy", h.BuyVehicle)
+			r.Post("/characters/{id}/vehicles/{vehicleID}/refuel", h.RefuelVehicle)
+			r.Get("/jobs", h.ListJobs)
+			r.Post("/characters/{id}/jobs/complete", h.CompleteJob)
 		})
 	})
 
@@ -483,5 +489,171 @@ func (h *Handler) BuyHouse(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "house purchase failed")
 	default:
 		httpx.JSON(w, http.StatusCreated, result)
+	}
+}
+
+func (h *Handler) ListVehicleCatalog(w http.ResponseWriter, _ *http.Request) {
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"listings":          catalog.Vehicles,
+		"fuel_price_per_unit": catalog.FuelPricePerUnit,
+		"spbu_id":           catalog.SPBUShopID,
+	})
+}
+
+func (h *Handler) ListVehicles(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	list, err := h.Store.ListVehicles(r.Context(), accountID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		httpx.Error(w, http.StatusNotFound, "character not found")
+		return
+	}
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "could not list vehicles")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"vehicles": list})
+}
+
+type buyVehicleRequest struct {
+	ListingKey string `json:"listing_key"`
+}
+
+func (h *Handler) BuyVehicle(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	var req buyVehicleRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	listing, found := catalog.VehicleByKey(req.ListingKey)
+	if !found {
+		httpx.Error(w, http.StatusBadRequest, "unknown listing_key")
+		return
+	}
+
+	result, err := h.Store.BuyVehicle(
+		r.Context(), accountID, id,
+		listing.Key, listing.Label, listing.Type, listing.Price, listing.FuelMax,
+	)
+	switch {
+	case errors.Is(err, store.ErrInvalidInput):
+		httpx.Error(w, http.StatusBadRequest, "invalid purchase")
+	case errors.Is(err, store.ErrNotFound):
+		httpx.Error(w, http.StatusNotFound, "character not found")
+	case errors.Is(err, store.ErrInsufficientFunds):
+		httpx.Error(w, http.StatusConflict, "insufficient cash")
+	case err != nil:
+		httpx.Error(w, http.StatusInternalServerError, "vehicle purchase failed")
+	default:
+		httpx.JSON(w, http.StatusCreated, result)
+	}
+}
+
+type refuelRequest struct {
+	Units float64 `json:"units"`
+}
+
+func (h *Handler) RefuelVehicle(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	vehicleID, err := uuid.Parse(chi.URLParam(r, "vehicleID"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid vehicle id")
+		return
+	}
+	var req refuelRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	if req.Units <= 0 {
+		req.Units = 10
+	}
+
+	result, err := h.Store.RefuelVehicle(r.Context(), accountID, id, vehicleID, req.Units, catalog.FuelPricePerUnit)
+	switch {
+	case errors.Is(err, store.ErrInvalidInput):
+		httpx.Error(w, http.StatusBadRequest, "invalid refuel (tank full or bad units)")
+	case errors.Is(err, store.ErrNotFound):
+		httpx.Error(w, http.StatusNotFound, "character or vehicle not found")
+	case errors.Is(err, store.ErrInsufficientFunds):
+		httpx.Error(w, http.StatusConflict, "insufficient cash")
+	case err != nil:
+		httpx.Error(w, http.StatusInternalServerError, "refuel failed")
+	default:
+		httpx.JSON(w, http.StatusOK, result)
+	}
+}
+
+func (h *Handler) ListJobs(w http.ResponseWriter, _ *http.Request) {
+	httpx.JSON(w, http.StatusOK, map[string]any{"jobs": catalog.Jobs})
+}
+
+type completeJobRequest struct {
+	JobKey string `json:"job_key"`
+}
+
+func (h *Handler) CompleteJob(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromContext(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid character id")
+		return
+	}
+	var req completeJobRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	job, found := catalog.JobByKey(req.JobKey)
+	if !found {
+		httpx.Error(w, http.StatusBadRequest, "unknown job_key")
+		return
+	}
+
+	c, err := h.Store.CompleteJobShift(r.Context(), accountID, id, job.Key, job.Payout)
+	switch {
+	case errors.Is(err, store.ErrInvalidInput):
+		httpx.Error(w, http.StatusBadRequest, "invalid job")
+	case errors.Is(err, store.ErrNotFound):
+		httpx.Error(w, http.StatusNotFound, "character not found")
+	case err != nil:
+		httpx.Error(w, http.StatusInternalServerError, "job failed")
+	default:
+		httpx.JSON(w, http.StatusOK, map[string]any{
+			"character": c,
+			"job_key":   job.Key,
+			"payout":    job.Payout,
+		})
 	}
 }

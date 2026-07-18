@@ -566,6 +566,270 @@ func (s *Store) BuyHouse(ctx context.Context, accountID, characterID uuid.UUID, 
 	return BuyHouseResult{Character: c, House: h, Inventory: inv}, nil
 }
 
+func (s *Store) ListVehicles(ctx context.Context, accountID, characterID uuid.UUID) ([]models.Vehicle, error) {
+	if _, err := s.GetCharacterForAccount(ctx, accountID, characterID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, character_id, listing_key, label, vehicle_type, fuel, fuel_max,
+		       pos_x, pos_y, pos_z, purchase_price, created_at, updated_at
+		FROM vehicles WHERE character_id = $1 ORDER BY created_at ASC
+	`, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]models.Vehicle, 0)
+	for rows.Next() {
+		var v models.Vehicle
+		if err := rows.Scan(
+			&v.ID, &v.CharacterID, &v.ListingKey, &v.Label, &v.VehicleType, &v.Fuel, &v.FuelMax,
+			&v.PosX, &v.PosY, &v.PosZ, &v.PurchasePrice, &v.CreatedAt, &v.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+type BuyVehicleResult struct {
+	Character models.Character `json:"character"`
+	Vehicle   models.Vehicle   `json:"vehicle"`
+}
+
+func (s *Store) BuyVehicle(ctx context.Context, accountID, characterID uuid.UUID, listingKey, label, vehicleType string, price int64, fuelMax float64) (BuyVehicleResult, error) {
+	if listingKey == "" || label == "" || price < 0 || fuelMax <= 0 {
+		return BuyVehicleResult{}, ErrInvalidInput
+	}
+	if vehicleType != "motorcycle" && vehicleType != "car" {
+		return BuyVehicleResult{}, ErrInvalidInput
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return BuyVehicleResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var c models.Character
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, name, gender, skin_tone, hair_style, face_preset, outfit_id,
+		       cash, bank, pos_x, pos_y, pos_z, created_at, updated_at
+		FROM characters WHERE id = $1 AND account_id = $2
+		FOR UPDATE
+	`, characterID, accountID).Scan(
+		&c.ID, &c.AccountID, &c.Name, &c.Gender, &c.SkinTone, &c.HairStyle, &c.FacePreset, &c.OutfitID,
+		&c.Cash, &c.Bank, &c.PosX, &c.PosY, &c.PosZ, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return BuyVehicleResult{}, ErrNotFound
+	}
+	if err != nil {
+		return BuyVehicleResult{}, err
+	}
+	if c.Cash < price {
+		return BuyVehicleResult{}, ErrInsufficientFunds
+	}
+
+	c.Cash -= price
+	if err := tx.QueryRow(ctx, `
+		UPDATE characters SET cash = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, c.Cash, c.ID).Scan(&c.UpdatedAt); err != nil {
+		return BuyVehicleResult{}, err
+	}
+
+	var v models.Vehicle
+	err = tx.QueryRow(ctx, `
+		INSERT INTO vehicles (
+			character_id, listing_key, label, vehicle_type, fuel, fuel_max, purchase_price,
+			pos_x, pos_y, pos_z
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		RETURNING id, character_id, listing_key, label, vehicle_type, fuel, fuel_max,
+		          pos_x, pos_y, pos_z, purchase_price, created_at, updated_at
+	`, c.ID, listingKey, label, vehicleType, fuelMax*0.4, fuelMax, price, c.PosX, c.PosY, c.PosZ).Scan(
+		&v.ID, &v.CharacterID, &v.ListingKey, &v.Label, &v.VehicleType, &v.Fuel, &v.FuelMax,
+		&v.PosX, &v.PosY, &v.PosZ, &v.PurchasePrice, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if err != nil {
+		return BuyVehicleResult{}, err
+	}
+
+	keyItem := "vehicle_key_" + listingKey
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO inventory_items (character_id, item_key, quantity)
+		VALUES ($1, $2, 1)
+		ON CONFLICT (character_id, item_key)
+		DO UPDATE SET quantity = inventory_items.quantity + 1, updated_at = NOW()
+	`, c.ID, keyItem); err != nil {
+		return BuyVehicleResult{}, err
+	}
+
+	meta := fmt.Sprintf(`{"listing_key":%q,"vehicle_type":%q}`, listingKey, vehicleType)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO transactions (character_id, kind, amount, balance_cash, balance_bank, meta)
+		VALUES ($1, 'vehicle_purchase', $2, $3, $4, $5::jsonb)
+	`, c.ID, price, c.Cash, c.Bank, meta); err != nil {
+		return BuyVehicleResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return BuyVehicleResult{}, err
+	}
+	return BuyVehicleResult{Character: c, Vehicle: v}, nil
+}
+
+type RefuelResult struct {
+	Character models.Character `json:"character"`
+	Vehicle   models.Vehicle   `json:"vehicle"`
+	FuelAdded float64          `json:"fuel_added"`
+	TotalPaid int64            `json:"total_paid"`
+}
+
+func (s *Store) RefuelVehicle(ctx context.Context, accountID, characterID, vehicleID uuid.UUID, units float64, pricePerUnit int64) (RefuelResult, error) {
+	if units <= 0 || pricePerUnit < 0 {
+		return RefuelResult{}, ErrInvalidInput
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return RefuelResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var c models.Character
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, name, gender, skin_tone, hair_style, face_preset, outfit_id,
+		       cash, bank, pos_x, pos_y, pos_z, created_at, updated_at
+		FROM characters WHERE id = $1 AND account_id = $2
+		FOR UPDATE
+	`, characterID, accountID).Scan(
+		&c.ID, &c.AccountID, &c.Name, &c.Gender, &c.SkinTone, &c.HairStyle, &c.FacePreset, &c.OutfitID,
+		&c.Cash, &c.Bank, &c.PosX, &c.PosY, &c.PosZ, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return RefuelResult{}, ErrNotFound
+	}
+	if err != nil {
+		return RefuelResult{}, err
+	}
+
+	var v models.Vehicle
+	err = tx.QueryRow(ctx, `
+		SELECT id, character_id, listing_key, label, vehicle_type, fuel, fuel_max,
+		       pos_x, pos_y, pos_z, purchase_price, created_at, updated_at
+		FROM vehicles WHERE id = $1 AND character_id = $2
+		FOR UPDATE
+	`, vehicleID, characterID).Scan(
+		&v.ID, &v.CharacterID, &v.ListingKey, &v.Label, &v.VehicleType, &v.Fuel, &v.FuelMax,
+		&v.PosX, &v.PosY, &v.PosZ, &v.PurchasePrice, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return RefuelResult{}, ErrNotFound
+	}
+	if err != nil {
+		return RefuelResult{}, err
+	}
+
+	room := v.FuelMax - v.Fuel
+	if room <= 0 {
+		return RefuelResult{}, ErrInvalidInput
+	}
+	if units > room {
+		units = room
+	}
+	// bill whole units rounded up for simplicity (ceil to int fuel units charged)
+	chargeUnits := int64(units + 0.999999) // ceil
+	if chargeUnits < 1 {
+		chargeUnits = 1
+	}
+	total := chargeUnits * pricePerUnit
+	if c.Cash < total {
+		return RefuelResult{}, ErrInsufficientFunds
+	}
+
+	c.Cash -= total
+	v.Fuel += units
+	if v.Fuel > v.FuelMax {
+		v.Fuel = v.FuelMax
+	}
+
+	if err := tx.QueryRow(ctx, `
+		UPDATE characters SET cash = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, c.Cash, c.ID).Scan(&c.UpdatedAt); err != nil {
+		return RefuelResult{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+		UPDATE vehicles SET fuel = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, v.Fuel, v.ID).Scan(&v.UpdatedAt); err != nil {
+		return RefuelResult{}, err
+	}
+
+	meta := fmt.Sprintf(`{"vehicle_id":%q,"units":%v,"price_per_unit":%d}`, v.ID.String(), units, pricePerUnit)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO transactions (character_id, kind, amount, balance_cash, balance_bank, meta)
+		VALUES ($1, 'spbu_refuel', $2, $3, $4, $5::jsonb)
+	`, c.ID, total, c.Cash, c.Bank, meta); err != nil {
+		return RefuelResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return RefuelResult{}, err
+	}
+	return RefuelResult{Character: c, Vehicle: v, FuelAdded: units, TotalPaid: total}, nil
+}
+
+// CompleteJobShift — MVP money loop (fiksi). Server decides payout.
+func (s *Store) CompleteJobShift(ctx context.Context, accountID, characterID uuid.UUID, jobKey string, payout int64) (models.Character, error) {
+	if jobKey == "" || payout <= 0 {
+		return models.Character{}, ErrInvalidInput
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return models.Character{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var c models.Character
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, name, gender, skin_tone, hair_style, face_preset, outfit_id,
+		       cash, bank, pos_x, pos_y, pos_z, created_at, updated_at
+		FROM characters WHERE id = $1 AND account_id = $2
+		FOR UPDATE
+	`, characterID, accountID).Scan(
+		&c.ID, &c.AccountID, &c.Name, &c.Gender, &c.SkinTone, &c.HairStyle, &c.FacePreset, &c.OutfitID,
+		&c.Cash, &c.Bank, &c.PosX, &c.PosY, &c.PosZ, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Character{}, ErrNotFound
+	}
+	if err != nil {
+		return models.Character{}, err
+	}
+
+	c.Cash += payout
+	if err := tx.QueryRow(ctx, `
+		UPDATE characters SET cash = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at
+	`, c.Cash, c.ID).Scan(&c.UpdatedAt); err != nil {
+		return models.Character{}, err
+	}
+
+	meta := fmt.Sprintf(`{"job_key":%q}`, jobKey)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO transactions (character_id, kind, amount, balance_cash, balance_bank, meta)
+		VALUES ($1, 'job_payout', $2, $3, $4, $5::jsonb)
+	`, c.ID, payout, c.Cash, c.Bank, meta); err != nil {
+		return models.Character{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return models.Character{}, err
+	}
+	return c, nil
+}
+
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
